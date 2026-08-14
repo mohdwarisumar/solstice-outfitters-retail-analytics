@@ -1,0 +1,43 @@
+{
+  "name": "Solstice Outfitters",
+  "dataColors": [
+    "#3F5B4B",
+    "#B8895A",
+    "#7A8471",
+    "#D9C29C",
+    "#5C7A6E",
+    "#9C6B47",
+    "#C4B49A",
+    "#4A6357"
+  ],
+  "background": "#FBFAF7",
+  "foreground": "#2B2B28",
+  "tableAccent": "#3F5B4B",
+  "good": "#3F5B4B",
+  "bad": "#A6483A",
+  "neutral": "#B8895A",
+  "maximum": "#3F5B4B",
+  "center": "#D9C29C",
+  "minimum": "#FBFAF7",
+  "null": "#C4B49A",
+  "textClasses": {
+    "callout": { "fontSize": 32, "fontFace": "Segoe UI Semibold" },
+    "title": { "fontSize": 14, "fontFace": "Segoe UI Semibold", "color": "#2B2B28" },
+    "header": { "fontSize": 12, "fontFace": "Segoe UI", "color": "#2B2B28" },
+    "label": { "fontSize": 10, "fontFace": "Segoe UI", "color": "#5C5C58" }
+  },
+  "visualStyles": {
+    "*": {
+      "*": {
+        "background": [{ "color": { "solid": { "color": "#FBFAF7" } }, "transparency": 0 }],
+        "border": [{ "show": false }]
+      }
+    },
+    "card": {
+      "*": {
+        "labels": [{ "color": "#3F5B4B", "fontSize": 28, "fontFamily": "Segoe UI Semibold" }],
+        "categoryLabels": [{ "color": "#5C5C58", "fontSize": 11 }]
+      }
+    }
+  }
+}
