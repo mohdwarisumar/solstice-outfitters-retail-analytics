@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solstice Outfitters — Sales Analytics</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --good:           #006300;
+    --bad:            #d03b3b;
+    --s1: #2a78d6; /* blue */
+    --s2: #eb6834; /* orange */
+    --s3: #1baf7a; /* aqua */
+    --s4: #eda100; /* yellow */
+    --s5: #e87ba4; /* magenta */
+    --s6: #008300; /* green */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page-plane); color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 24px 64px; }
+  header.page-head { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 22px; flex-wrap: wrap; gap: 12px; }
+  header.page-head h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  .asof { font-size: 12px; color: var(--text-muted); text-align:right; }
+  .kpi-row { display:grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 22px; }
+  .kpi-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .kpi-card .label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+  .kpi-card .value { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+  .kpi-card .delta { font-size: 12px; margin-top: 4px; }
+  .delta.up { color: var(--good); } .delta.down { color: var(--bad); }
+  .grid-2 { display:grid; grid-template-columns: 1.4fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
+  figure.chart-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px 12px; margin: 0;
+  }
+  figure.chart-card .chart-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 10px; }
+  figure.chart-card h2 { font-size: 13px; font-weight: 600; margin: 0; }
+  figure.chart-card .insight { font-size: 11.5px; color: var(--text-secondary); margin: 2px 0 0; max-width: 60ch; }
+  .table-toggle {
+    font-size: 11px; color: var(--text-secondary); background: none; border: 1px solid var(--border);
+    border-radius: 6px; padding: 3px 8px; cursor: pointer; white-space: nowrap;
+  }
+  .table-toggle:hover { background: var(--page-plane); }
+  .legend { display:flex; gap: 14px; flex-wrap: wrap; margin: 8px 0 0; font-size: 11.5px; color: var(--text-secondary); }
+  .legend .item { display:flex; align-items:center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 2px; display:inline-block; }
+  svg text { fill: var(--text-muted); font-size: 10.5px; font-family: system-ui, sans-serif; }
+  .bar-label { fill: var(--text-primary) !important; font-size: 11px !important; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .axis-line { stroke: var(--baseline); stroke-width: 1; }
+  .tooltip {
+    position: absolute; pointer-events:none; background: #232320; color: #fff; font-size: 11.5px;
+    padding: 6px 10px; border-radius: 6px; line-height: 1.5; opacity: 0; transition: opacity .08s; z-index: 10;
+    white-space: nowrap;
+  }
+  table.data-table { width:100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; display:none; }
+  table.data-table.show { display: table; }
+  table.data-table th, table.data-table td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--grid); }
+  table.data-table th { color: var(--text-secondary); font-weight: 600; }
+  .chart-svg-wrap.hide { display:none; }
+  footer.foot { margin-top: 28px; font-size: 11.5px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 12px; }
+  @media (max-width: 880px) {
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+
+  <header class="page-head">
+    <div>
+      <h1>Solstice Outfitters — Sales Analytics</h1>
+      <p>Online + 5 UK retail stores · Jan 2023 – Jul 2026</p>
+    </div>
+    <div class="asof">Data as of 31 Jul 2026 · SQLite → Power BI pipeline</div>
+  </header>
+
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <div class="grid-2">
+    <figure class="chart-card">
+      <div class="chart-head">
+        <div>
+          <h2>Monthly net revenue — current vs. prior year</h2>
+          <p class="insight">Nov/Dec always peaks; 2026 is tracking ahead of 2025 on every month so far.</p>
+        </div>
+        <button class="table-toggle" data-target="t-revenue">View as table</button>
+      </div>
+      <div class="chart-svg-wrap" id="c-revenue"></div>
+      <div class="legend" id="l-revenue"></div>
+      <table class="data-table" id="t-revenue"></table>
+    </figure>
+
+    <figure class="chart-card">
+      <div class="chart-head">
+        <div><h2>Revenue by category</h2>
+        <p class="insight">Camping &amp; Hiking overtook apparel in 2023, driven by the summer bump.</p></div>
+        <button class="table-toggle" data-target="t-category">View as table</button>
+      </div>
+      <div class="chart-svg-wrap" id="c-category"></div>
+      <table class="data-table" id="t-category"></table>
+    </figure>
+  </div>
+
+  <div class="grid-3">
+    <figure class="chart-card">
+      <div class="chart-head">
+        <div><h2>Revenue by region</h2></div>
+        <button class="table-toggle" data-target="t-region">Table</button>
+      </div>
+      <div class="chart-svg-wrap" id="c-region"></div>
+      <table class="data-table" id="t-region"></table>
+    </figure>
+
+    <figure class="chart-card">
+      <div class="chart-head">
+        <div><h2>Return rate by category</h2></div>
+        <button class="table-toggle" data-target="t-return">Table</button>
+      </div>
+      <div class="chart-svg-wrap" id="c-return"></div>
+      <table class="data-table" id="t-return"></table>
+    </figure>
+
+    <figure class="chart-card">
+      <div class="chart-head">
+        <div><h2>New vs. returning revenue</h2></div>
+        <button class="table-toggle" data-target="t-newret">Table</button>
+      </div>
+      <div class="chart-svg-wrap" id="c-newret"></div>
+      <div class="legend" id="l-newret"></div>
+      <table class="data-table" id="t-newret"></table>
+    </figure>
+  </div>
+
+  <figure class="chart-card" style="margin-bottom:14px;">
+    <div class="chart-head">
+      <div><h2>Top 10 products by revenue</h2>
+      <p class="insight">Tents and cook sets from Northfell dominate — house brand (Solstice Originals) shows up more in apparel.</p></div>
+    </div>
+    <table class="data-table show" id="t-products"></table>
+  </figure>
+
+  <footer class="foot">
+    Synthetic dataset generated for portfolio purposes — Solstice Outfitters is a fictitious retailer. Backing SQL and Power BI build guide in the same project folder. Built by Mohammad Waris.
+  </footer>
+
+</div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const DATA = {"kpis_by_year": [{"year": 2023, "net_revenue": 1497566.29, "net_profit": 683243.87, "orders": 10791}, {"year": 2024, "net_revenue": 1772837.98, "net_profit": 810953.85, "orders": 12850}, {"year": 2025, "net_revenue": 2106218.42, "net_profit": 958408.19, "orders": 15175}, {"year": 2026, "net_revenue": 1196497.24, "net_profit": 550916.29, "orders": 8245}], "monthly_revenue": [{"year": 2023, "month": 1, "month_name": "January", "net_revenue": 70427.98}, {"year": 2023, "month": 2, "month_name": "February", "net_revenue": 60987.85}, {"year": 2023, "month": 3, "month_name": "March", "net_revenue": 89290.84}, {"year": 2023, "month": 4, "month_name": "April", "net_revenue": 95166.18}, {"year": 2023, "month": 5, "month_name": "May", "net_revenue": 135516.95}, {"year": 2023, "month": 6, "month_name": "June", "net_revenue": 151150.1}, {"year": 2023, "month": 7, "month_name": "July", "net_revenue": 169026.9}, {"year": 2023, "month": 8, "month_name": "August", "net_revenue": 144312.56}, {"year": 2023, "month": 9, "month_name": "September", "net_revenue": 125350.68}, {"year": 2023, "month": 10, "month_name": "October", "net_revenue": 115505.39}, {"year": 2023, "month": 11, "month_name": "November", "net_revenue": 159967.68}, {"year": 2023, "month": 12, "month_name": "December", "net_revenue": 180863.18}, {"year": 2024, "month": 1, "month_name": "January", "net_revenue": 88588.63}, {"year": 2024, "month": 2, "month_name": "February", "net_revenue": 81802.13}, {"year": 2024, "month": 3, "month_name": "March", "net_revenue": 97069.14}, {"year": 2024, "month": 4, "month_name": "April", "net_revenue": 120899.39}, {"year": 2024, "month": 5, "month_name": "May", "net_revenue": 151325.03}, {"year": 2024, "month": 6, "month_name": "June", "net_revenue": 170127.08}, {"year": 2024, "month": 7, "month_name": "July", "net_revenue": 186143.65}, {"year": 2024, "month": 8, "month_name": "August", "net_revenue": 178255.56}, {"year": 2024, "month": 9, "month_name": "September", "net_revenue": 155796.97}, {"year": 2024, "month": 10, "month_name": "October", "net_revenue": 127860.87}, {"year": 2024, "month": 11, "month_name": "November", "net_revenue": 187257.34}, {"year": 2024, "month": 12, "month_name": "December", "net_revenue": 227712.19}, {"year": 2025, "month": 1, "month_name": "January", "net_revenue": 99693.36}, {"year": 2025, "month": 2, "month_name": "February", "net_revenue": 96838.57}, {"year": 2025, "month": 3, "month_name": "March", "net_revenue": 131656.27}, {"year": 2025, "month": 4, "month_name": "April", "net_revenue": 128194.07}, {"year": 2025, "month": 5, "month_name": "May", "net_revenue": 192645.91}, {"year": 2025, "month": 6, "month_name": "June", "net_revenue": 197680.26}, {"year": 2025, "month": 7, "month_name": "July", "net_revenue": 224735.91}, {"year": 2025, "month": 8, "month_name": "August", "net_revenue": 210293.24}, {"year": 2025, "month": 9, "month_name": "September", "net_revenue": 178625.5}, {"year": 2025, "month": 10, "month_name": "October", "net_revenue": 163062.27}, {"year": 2025, "month": 11, "month_name": "November", "net_revenue": 223845.88}, {"year": 2025, "month": 12, "month_name": "December", "net_revenue": 258947.18}, {"year": 2026, "month": 1, "month_name": "January", "net_revenue": 117784.19}, {"year": 2026, "month": 2, "month_name": "February", "net_revenue": 107498.45}, {"year": 2026, "month": 3, "month_name": "March", "net_revenue": 141897.67}, {"year": 2026, "month": 4, "month_name": "April", "net_revenue": 148993.25}, {"year": 2026, "month": 5, "month_name": "May", "net_revenue": 224563.97}, {"year": 2026, "month": 6, "month_name": "June", "net_revenue": 218421.96}, {"year": 2026, "month": 7, "month_name": "July", "net_revenue": 237337.75}], "category_revenue": [{"category": "Camping & Hiking", "revenue": 3424406.64}, {"category": "Men's Apparel", "revenue": 1261652.36}, {"category": "Footwear", "revenue": 1088042.41}, {"category": "Women's Apparel", "revenue": 938545.89}, {"category": "Accessories", "revenue": 531939.21}], "region_performance": [{"region": "National", "store_type": "Online", "orders": 30095, "revenue": 4483925.1, "aov": 148.99}, {"region": "London", "store_type": "Retail", "orders": 5025, "revenue": 641178.3, "aov": 127.6}, {"region": "North West", "store_type": "Retail", "orders": 4947, "revenue": 632013.48, "aov": 127.76}, {"region": "South West", "store_type": "Retail", "orders": 4689, "revenue": 586554.34, "aov": 125.09}, {"region": "Scotland", "store_type": "Retail", "orders": 4449, "revenue": 566188.06, "aov": 127.26}, {"region": "Yorkshire", "store_type": "Retail", "orders": 2700, "revenue": 334727.23, "aov": 123.97}], "return_rate_by_category": [{"category": "Footwear", "total_lines": 11590, "returned_lines": 1584, "return_rate_pct": 13.7}, {"category": "Women's Apparel", "total_lines": 10718, "returned_lines": 1276, "return_rate_pct": 11.9}, {"category": "Men's Apparel", "total_lines": 12686, "returned_lines": 1409, "return_rate_pct": 11.1}, {"category": "Camping & Hiking", "total_lines": 20694, "returned_lines": 1073, "return_rate_pct": 5.2}, {"category": "Accessories", "total_lines": 9848, "returned_lines": 398, "return_rate_pct": 4.0}], "top_products": [{"product_name": "Ridge 2-Person Tent", "category": "Camping & Hiking", "brand": "Northfell", "units_sold": 6405, "revenue": 1019313.5, "margin_pct": 36.7}, {"product_name": "Cotswold Cook Set", "category": "Camping & Hiking", "brand": "Northfell", "units_sold": 2006, "revenue": 443041.64, "margin_pct": 42.1}, {"product_name": "Cotswold Down Sleeping Bag", "category": "Camping & Hiking", "brand": "RidgeCore", "units_sold": 2631, "revenue": 370341.69, "margin_pct": 36.8}, {"product_name": "Brecon Walking Trousers", "category": "Men's Apparel", "brand": "Alderwood", "units_sold": 3257, "revenue": 305559.43, "margin_pct": 54.5}, {"product_name": "Wicklow Grip Trail Shoe", "category": "Footwear", "brand": "RidgeCore", "units_sold": 3824, "revenue": 234665.11, "margin_pct": 44.3}, {"product_name": "Northmoor Insulated Flask", "category": "Camping & Hiking", "brand": "Alderwood", "units_sold": 1336, "revenue": 223543.49, "margin_pct": 37.4}, {"product_name": "Glenshee Insulated Jacket", "category": "Men's Apparel", "brand": "TrailPeak", "units_sold": 2748, "revenue": 195265.77, "margin_pct": 57.8}, {"product_name": "Glenshee 2-Person Tent", "category": "Camping & Hiking", "brand": "Northfell", "units_sold": 858, "revenue": 173785.82, "margin_pct": 35.2}, {"product_name": "Loch Thermal Leggings", "category": "Women's Apparel", "brand": "Solstice Originals", "units_sold": 1563, "revenue": 172812.22, "margin_pct": 54.7}, {"product_name": "Voyager Daypack", "category": "Camping & Hiking", "brand": "RidgeCore", "units_sold": 1003, "revenue": 170788.37, "margin_pct": 40.0}], "new_vs_returning": [{"order_month": "2023-01", "customer_type": "New", "revenue": 79626.45}, {"order_month": "2023-02", "customer_type": "Returning", "revenue": 67711.94}, {"order_month": "2023-03", "customer_type": "Returning", "revenue": 96879.33}, {"order_month": "2023-04", "customer_type": "New", "revenue": 4318.43}, {"order_month": "2023-04", "customer_type": "Returning", "revenue": 103729.64}, {"order_month": "2023-05", "customer_type": "New", "revenue": 28702.34}, {"order_month": "2023-05", "customer_type": "Returning", "revenue": 120704.01}, {"order_month": "2023-06", "customer_type": "New", "revenue": 22790.46}, {"order_month": "2023-06", "customer_type": "Returning", "revenue": 142040.35}, {"order_month": "2023-07", "customer_type": "New", "revenue": 28976.29}, {"order_month": "2023-07", "customer_type": "Returning", "revenue": 152644.34}, {"order_month": "2023-08", "customer_type": "New", "revenue": 19010.75}, {"order_month": "2023-08", "customer_type": "Returning", "revenue": 136081.75}, {"order_month": "2023-09", "customer_type": "New", "revenue": 21140.6}, {"order_month": "2023-09", "customer_type": "Returning", "revenue": 116321.08}, {"order_month": "2023-10", "customer_type": "New", "revenue": 23084.04}, {"order_month": "2023-10", "customer_type": "Returning", "revenue": 105647.74}, {"order_month": "2023-11", "customer_type": "New", "revenue": 24261.83}, {"order_month": "2023-11", "customer_type": "Returning", "revenue": 157134.3}, {"order_month": "2023-12", "customer_type": "New", "revenue": 19828.43}, {"order_month": "2023-12", "customer_type": "Returning", "revenue": 185741.74}, {"order_month": "2024-01", "customer_type": "New", "revenue": 9790.1}, {"order_month": "2024-01", "customer_type": "Returning", "revenue": 87904.83}, {"order_month": "2024-02", "customer_type": "New", "revenue": 15092.43}, {"order_month": "2024-02", "customer_type": "Returning", "revenue": 77247.59}, {"order_month": "2024-03", "customer_type": "New", "revenue": 19798.4}, {"order_month": "2024-03", "customer_type": "Returning", "revenue": 90224.58}, {"order_month": "2024-04", "customer_type": "New", "revenue": 19356.96}, {"order_month": "2024-04", "customer_type": "Returning", "revenue": 114790.01}, {"order_month": "2024-05", "customer_type": "New", "revenue": 25502.17}, {"order_month": "2024-05", "customer_type": "Returning", "revenue": 140166.56}, {"order_month": "2024-06", "customer_type": "New", "revenue": 19346.74}, {"order_month": "2024-06", "customer_type": "Returning", "revenue": 165092.14}, {"order_month": "2024-07", "customer_type": "New", "revenue": 23338.99}, {"order_month": "2024-07", "customer_type": "Returning", "revenue": 183610.48}, {"order_month": "2024-08", "customer_type": "New", "revenue": 20390.94}, {"order_month": "2024-08", "customer_type": "Returning", "revenue": 171426.84}, {"order_month": "2024-09", "customer_type": "New", "revenue": 24033.3}, {"order_month": "2024-09", "customer_type": "Returning", "revenue": 142380.34}, {"order_month": "2024-10", "customer_type": "New", "revenue": 21211.1}, {"order_month": "2024-10", "customer_type": "Returning", "revenue": 121131.11}, {"order_month": "2024-11", "customer_type": "New", "revenue": 31321.04}, {"order_month": "2024-11", "customer_type": "Returning", "revenue": 179386.55}, {"order_month": "2024-12", "customer_type": "New", "revenue": 25524.9}, {"order_month": "2024-12", "customer_type": "Returning", "revenue": 227985.34}, {"order_month": "2025-01", "customer_type": "New", "revenue": 13004.26}, {"order_month": "2025-01", "customer_type": "Returning", "revenue": 99038.18}, {"order_month": "2025-02", "customer_type": "New", "revenue": 12535.55}, {"order_month": "2025-02", "customer_type": "Returning", "revenue": 95901.94}, {"order_month": "2025-03", "customer_type": "New", "revenue": 19126.44}, {"order_month": "2025-03", "customer_type": "Returning", "revenue": 128845.55}, {"order_month": "2025-04", "customer_type": "New", "revenue": 16327.15}, {"order_month": "2025-04", "customer_type": "Returning", "revenue": 125929.59}, {"order_month": "2025-05", "customer_type": "New", "revenue": 24762.26}, {"order_month": "2025-05", "customer_type": "Returning", "revenue": 187782.81}, {"order_month": "2025-06", "customer_type": "New", "revenue": 21182.6}, {"order_month": "2025-06", "customer_type": "Returning", "revenue": 192714.95}, {"order_month": "2025-07", "customer_type": "New", "revenue": 19719.37}, {"order_month": "2025-07", "customer_type": "Returning", "revenue": 226509.06}, {"order_month": "2025-08", "customer_type": "New", "revenue": 18909.02}, {"order_month": "2025-08", "customer_type": "Returning", "revenue": 207972.22}, {"order_month": "2025-09", "customer_type": "New", "revenue": 11350.02}, {"order_month": "2025-09", "customer_type": "Returning", "revenue": 181445.58}, {"order_month": "2025-10", "customer_type": "New", "revenue": 11447.04}, {"order_month": "2025-10", "customer_type": "Returning", "revenue": 165552.4}, {"order_month": "2025-11", "customer_type": "New", "revenue": 13974.1}, {"order_month": "2025-11", "customer_type": "Returning", "revenue": 235843.6}, {"order_month": "2025-12", "customer_type": "New", "revenue": 15647.89}, {"order_month": "2025-12", "customer_type": "Returning", "revenue": 272755.23}, {"order_month": "2026-01", "customer_type": "New", "revenue": 4002.02}, {"order_month": "2026-01", "customer_type": "Returning", "revenue": 126215.13}, {"order_month": "2026-02", "customer_type": "New", "revenue": 5710.28}, {"order_month": "2026-02", "customer_type": "Returning", "revenue": 116505.24}, {"order_month": "2026-03", "customer_type": "New", "revenue": 5144.37}, {"order_month": "2026-03", "customer_type": "Returning", "revenue": 152335.84}, {"order_month": "2026-04", "customer_type": "New", "revenue": 7181.69}, {"order_month": "2026-04", "customer_type": "Returning", "revenue": 157434.6}, {"order_month": "2026-05", "customer_type": "New", "revenue": 7022.41}, {"order_month": "2026-05", "customer_type": "Returning", "revenue": 236890.6}, {"order_month": "2026-06", "customer_type": "New", "revenue": 5697.11}, {"order_month": "2026-06", "customer_type": "Returning", "revenue": 231622.59}, {"order_month": "2026-07", "customer_type": "New", "revenue": 5401.51}, {"order_month": "2026-07", "customer_type": "Returning", "revenue": 252717.03}], "overall": {"net_revenue": 6573119.93, "net_profit": 3003522.2, "orders": 47061, "aov": 139.67, "margin_pct": 45.7}};
+
+const fmtGBP = (v) => '£' + Math.round(v).toLocaleString('en-GB');
+const fmtGBPk = (v) => '£' + (v/1000).toFixed(0) + 'k';
+
+const catColors = {};
+(function assignCatColors(){
+  const order = ['s1','s2','s3','s4','s5','s6'];
+  const cats = DATA.category_revenue.map(d => d.category);
+  cats.forEach((c,i) => catColors[c] = getComputedStyle(document.querySelector('.viz-root')).getPropertyValue('--'+order[i]).trim());
+})();
+
+const tooltip = document.getElementById('tooltip');
+function showTooltip(evt, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.opacity = 1;
+  tooltip.style.left = (evt.pageX + 14) + 'px';
+  tooltip.style.top = (evt.pageY - 10) + 'px';
+}
+function hideTooltip() { tooltip.style.opacity = 0; }
+
+// ---------- KPI row ----------
+function renderKPIs() {
+  const o = DATA.overall;
+  const y2025 = DATA.kpis_by_year.find(d => d.year === 2025).net_revenue;
+  const y2024 = DATA.kpis_by_year.find(d => d.year === 2024).net_revenue;
+  const yoy = ((y2025 - y2024) / y2024 * 100).toFixed(1);
+  const cards = [
+    ['Total net revenue', fmtGBP(o.net_revenue), null],
+    ['2025 vs 2024 growth', yoy + '%', yoy >= 0 ? 'up' : 'down'],
+    ['Orders (all-time)', o.orders.toLocaleString('en-GB'), null],
+    ['Average order value', '£' + o.aov.toFixed(2), null],
+    ['Profit margin', o.margin_pct + '%', null],
+  ];
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = cards.map(([label, value, delta]) => `
+    <div class="kpi-card">
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
+      ${delta ? `<div class="delta ${delta}">${delta === 'up' ? '▲' : '▼'} vs prior year</div>` : ''}
+    </div>`).join('');
+}
+
+// ---------- Line chart: monthly revenue, current vs prior year ----------
+function renderRevenueLine() {
+  const container = document.getElementById('c-revenue');
+  const w = container.clientWidth || 560, h = 220, padL = 48, padR = 12, padT = 10, padB = 24;
+  const years = [...new Set(DATA.monthly_revenue.map(d => d.year))];
+  const latestTwo = years.slice(-2);
+  const monthsAbbr = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const series = latestTwo.map(yr => ({
+    year: yr,
+    points: DATA.monthly_revenue.filter(d => d.year === yr).sort((a,b)=>a.month-b.month)
+  }));
+  const allVals = series.flatMap(s => s.points.map(p => p.net_revenue));
+  const maxV = Math.max(...allVals) * 1.1;
+
+  const x = (m) => padL + (m - 1) / 11 * (w - padL - padR);
+  const y = (v) => padT + (1 - v / maxV) * (h - padT - padB);
+
+  const colors = ['var(--s1)', 'var(--s2)'];
+  let svg = `<svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMinYMin meet">`;
+  // gridlines
+  for (let i=0;i<=4;i++){
+    const gy = padT + i/4*(h-padT-padB);
+    svg += `<line x1="${padL}" y1="${gy}" x2="${w-padR}" y2="${gy}" class="gridline"/>`;
+    svg += `<text x="${padL-6}" y="${gy+3}" text-anchor="end">${fmtGBPk(maxV*(1-i/4))}</text>`;
+  }
+  monthsAbbr.forEach((m,i) => svg += `<text x="${x(i+1)}" y="${h-6}" text-anchor="middle">${m}</text>`);
+
+  series.forEach((s, si) => {
+    const pts = s.points.map(p => `${x(p.month)},${y(p.net_revenue)}`).join(' ');
+    svg += `<polyline points="${pts}" fill="none" stroke="${colors[si]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.points.forEach(p => {
+      svg += `<circle cx="${x(p.month)}" cy="${y(p.net_revenue)}" r="3" fill="${colors[si]}" data-year="${s.year}" data-month="${p.month_name}" data-val="${p.net_revenue}" class="pt"/>`;
+    });
+  });
+  svg += `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" class="axis-line"/>`;
+  svg += `</svg>`;
+  container.innerHTML = svg;
+
+  container.querySelectorAll('.pt').forEach(pt => {
+    pt.addEventListener('mouseenter', (e) => {
+      showTooltip(e, `<strong>${pt.dataset.month} ${pt.dataset.year}</strong><br>${fmtGBP(+pt.dataset.val)}`);
+      pt.setAttribute('r', 5);
+    });
+    pt.addEventListener('mousemove', (e) => showTooltip(e, `<strong>${pt.dataset.month} ${pt.dataset.year}</strong><br>${fmtGBP(+pt.dataset.val)}`));
+    pt.addEventListener('mouseleave', () => { hideTooltip(); pt.setAttribute('r', 3); });
+  });
+
+  document.getElementById('l-revenue').innerHTML = latestTwo.map((yr,i) =>
+    `<span class="item"><span class="swatch" style="background:${colors[i]}"></span>${yr}</span>`).join('');
+
+  const table = document.getElementById('t-revenue');
+  table.innerHTML = '<tr><th>Month</th>' + latestTwo.map(y=>`<th>${y}</th>`).join('') + '</tr>' +
+    monthsAbbr.map((m,i) => '<tr><td>'+m+'</td>' + latestTwo.map(yr => {
+      const rec = DATA.monthly_revenue.find(d => d.year===yr && d.month===i+1);
+      return `<td>${rec ? fmtGBP(rec.net_revenue) : '—'}</td>`;
+    }).join('') + '</tr>').join('');
+}
+
+// ---------- Horizontal bar: category revenue ----------
+function renderBarChart(containerId, tableId, rows, labelKey, valueKey, colorFn, valueFmt) {
+  const container = document.getElementById(containerId);
+  const w = container.clientWidth || 500;
+  const barH = 22, gap = 12, padL = 130, padR = 60, padT = 6;
+  const h = rows.length * (barH + gap) + padT;
+  const maxV = Math.max(...rows.map(r => r[valueKey])) * 1.12;
+  const x = (v) => padL + (v / maxV) * (w - padL - padR);
+
+  let svg = `<svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMinYMin meet">`;
+  rows.forEach((r, i) => {
+    const yPos = padT + i * (barH + gap);
+    const bw = x(r[valueKey]) - padL;
+    svg += `<text x="${padL - 8}" y="${yPos + barH/2 + 4}" text-anchor="end" class="bar-label">${r[labelKey]}</text>`;
+    svg += `<rect x="${padL}" y="${yPos}" width="${Math.max(bw,2)}" height="${barH}" rx="4" fill="${colorFn(r,i)}" class="bar" data-label="${r[labelKey]}" data-val="${r[valueKey]}"/>`;
+    svg += `<text x="${x(r[valueKey]) + 6}" y="${yPos + barH/2 + 4}" class="bar-label">${valueFmt(r[valueKey])}</text>`;
+  });
+  svg += `</svg>`;
+  container.innerHTML = svg;
+
+  container.querySelectorAll('.bar').forEach(bar => {
+    bar.addEventListener('mousemove', (e) => showTooltip(e, `<strong>${bar.dataset.label}</strong><br>${valueFmt(+bar.dataset.val)}`));
+    bar.addEventListener('mouseenter', (e) => { bar.style.opacity = 0.85; showTooltip(e, `<strong>${bar.dataset.label}</strong><br>${valueFmt(+bar.dataset.val)}`); });
+    bar.addEventListener('mouseleave', () => { bar.style.opacity = 1; hideTooltip(); });
+  });
+
+  const table = document.getElementById(tableId);
+  const otherKeys = Object.keys(rows[0]).filter(k => k !== labelKey && k !== valueKey);
+  table.innerHTML = '<tr><th>' + labelKey + '</th><th>' + valueKey + '</th>' + otherKeys.map(k=>`<th>${k}</th>`).join('') + '</tr>' +
+    rows.map(r => '<tr><td>'+r[labelKey]+'</td><td>'+valueFmt(r[valueKey])+'</td>' + otherKeys.map(k=>`<td>${r[k]}</td>`).join('') + '</tr>').join('');
+}
+
+// ---------- Stacked bar: new vs returning ----------
+function renderStackedBar() {
+  const container = document.getElementById('c-newret');
+  const months = [...new Set(DATA.new_vs_returning.map(d => d.order_month))].sort().slice(-12);
+  const w = container.clientWidth || 340, h = 200, padL = 44, padR = 8, padT = 8, padB = 30;
+  const grouped = months.map(m => {
+    const nu = DATA.new_vs_returning.find(d => d.order_month===m && d.customer_type==='New');
+    const re = DATA.new_vs_returning.find(d => d.order_month===m && d.customer_type==='Returning');
+    return { month: m, New: nu ? nu.revenue : 0, Returning: re ? re.revenue : 0 };
+  });
+  const maxV = Math.max(...grouped.map(g => g.New + g.Returning)) * 1.1;
+  const bw = (w - padL - padR) / grouped.length * 0.65;
+  const step = (w - padL - padR) / grouped.length;
+  const y = (v) => padT + (1 - v/maxV) * (h - padT - padB);
+
+  let svg = `<svg width="100%" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMinYMin meet">`;
+  for (let i=0;i<=3;i++){
+    const gy = padT + i/3*(h-padT-padB);
+    svg += `<line x1="${padL}" y1="${gy}" x2="${w-padR}" y2="${gy}" class="gridline"/>`;
+  }
+  grouped.forEach((g, i) => {
+    const xPos = padL + i*step + (step-bw)/2;
+    const newH = (h-padT-padB) - (y(g.New) - padT);
+    const retH = (h-padT-padB) - (y(g.Returning) - padT);
+    svg += `<rect x="${xPos}" y="${y(g.New)}" width="${bw}" height="${newH}" fill="var(--s1)" rx="2" data-m="${g.month}" data-v="${g.New}" data-t="New" class="sbar"/>`;
+    svg += `<rect x="${xPos}" y="${y(g.New) - retH}" width="${bw}" height="${retH}" fill="var(--s2)" rx="2" data-m="${g.month}" data-v="${g.Returning}" data-t="Returning" class="sbar"/>`;
+    if (i % 2 === 0) svg += `<text x="${xPos+bw/2}" y="${h-10}" text-anchor="middle">${g.month.slice(2)}</text>`;
+  });
+  svg += `<line x1="${padL}" y1="${h-padB}" x2="${w-padR}" y2="${h-padB}" class="axis-line"/>`;
+  svg += `</svg>`;
+  container.innerHTML = svg;
+
+  container.querySelectorAll('.sbar').forEach(bar => {
+    bar.addEventListener('mousemove', (e) => showTooltip(e, `<strong>${bar.dataset.t} · ${bar.dataset.m}</strong><br>${fmtGBP(+bar.dataset.v)}`));
+    bar.addEventListener('mouseleave', hideTooltip);
+  });
+
+  document.getElementById('l-newret').innerHTML = `<span class="item"><span class="swatch" style="background:var(--s1)"></span>New</span><span class="item"><span class="swatch" style="background:var(--s2)"></span>Returning</span>`;
+
+  const table = document.getElementById('t-newret');
+  table.innerHTML = '<tr><th>Month</th><th>New</th><th>Returning</th></tr>' +
+    grouped.map(g => `<tr><td>${g.month}</td><td>${fmtGBP(g.New)}</td><td>${fmtGBP(g.Returning)}</td></tr>`).join('');
+}
+
+function renderProductsTable() {
+  const table = document.getElementById('t-products');
+  table.innerHTML = '<tr><th>Product</th><th>Category</th><th>Brand</th><th>Units</th><th>Revenue</th><th>Margin</th></tr>' +
+    DATA.top_products.map(p => `<tr><td>${p.product_name}</td><td>${p.category}</td><td>${p.brand}</td><td>${p.units_sold.toLocaleString('en-GB')}</td><td>${fmtGBP(p.revenue)}</td><td>${p.margin_pct.toFixed(1)}%</td></tr>`).join('');
+}
+
+function wireToggles() {
+  document.querySelectorAll('.table-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const table = document.getElementById(btn.dataset.target);
+      const wrap = table.previousElementSibling.classList.contains('legend') ? table.previousElementSibling.previousElementSibling : table.previousElementSibling;
+      table.classList.toggle('show');
+      const chartWrap = btn.closest('figure').querySelector('.chart-svg-wrap');
+      if (table.classList.contains('show')) { chartWrap.classList.add('hide'); btn.textContent = btn.textContent.replace('View as table','Show chart').replace('Table','Chart'); }
+      else { chartWrap.classList.remove('hide'); btn.textContent = btn.textContent.replace('Show chart','View as table').replace('Chart','Table'); }
+    });
+  });
+}
+
+renderKPIs();
+renderRevenueLine();
+renderBarChart('c-category', 't-category', DATA.category_revenue, 'category', 'revenue', (r)=>catColors[r.category], fmtGBP);
+renderBarChart('c-region', 't-region', DATA.region_performance, 'region', 'revenue', (r,i)=>['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)'][i], fmtGBP);
+renderBarChart('c-return', 't-return', DATA.return_rate_by_category, 'category', 'return_rate_pct', (r)=>catColors[r.category], (v)=>v.toFixed(1)+'%');
+renderStackedBar();
+renderProductsTable();
+wireToggles();
+window.addEventListener('resize', () => { renderRevenueLine(); renderBarChart('c-category','t-category',DATA.category_revenue,'category','revenue',(r)=>catColors[r.category],fmtGBP); renderBarChart('c-region','t-region',DATA.region_performance,'region','revenue',(r,i)=>['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)'][i],fmtGBP); renderBarChart('c-return','t-return',DATA.return_rate_by_category,'category','return_rate_pct',(r)=>catColors[r.category],(v)=>v.toFixed(1)+'%'); renderStackedBar(); });
+</script>
+</body>
+</html>
